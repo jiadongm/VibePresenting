@@ -1,0 +1,654 @@
+---
+title: "From Association to Causation in High-Dimensional Multi-Omics"
+subtitle: "A tutorial handout for the Factor IV paper"
+author: "Reading group notes"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    toc: false
+    toc_depth: 2
+  html_document:
+    toc: false
+    toc_depth: 2
+    number_sections: false
+    theme: readable
+fontsize: 11pt
+---
+
+Paper: *Moving from Association to Causation: Instrumental factor models for causal inference in high-dimensional multi-omics data*
+
+The goal is to build enough causal vocabulary to understand what the paper is trying to do, why instrumental variables are useful, and how the proposed Factor IV framework adapts those ideas to high-dimensional multi-omics data.
+
+The central question is:
+
+> When microbiome or metabolomic features are associated with a host phenotype, what extra structure would allow us to interpret part of that relationship causally?
+
+The paper's answer is: sometimes we can use perturbations as instruments. If those perturbations shift the omics features but affect the outcome only through those features, then the instrument-induced part of the omics variation can be used for causal inference. Factor IV extends this idea to high-dimensional multi-omics by learning low-dimensional, instrument-aligned factors.
+
+## 1. Association, Prediction, and Causation in Multi-Omics
+
+It is tempting to begin a causal-inference talk with the phrase "association is not causation." The phrase is true, but stale. Worse, it can sound as if association and prediction are somehow inferior activities. That is not the right tone for this paper or this audience.
+
+Association, prediction, and causation answer different questions.
+
+| Goal | Example question | A good answer is useful for |
+|---|---|---|
+| Association | Which taxa or metabolites vary with disease status? | Biomarker discovery, biological hypothesis generation |
+| Prediction | Which features help predict disease status in new samples? | Risk scoring, classification, screening, prognosis |
+| Causation | What would happen to the outcome if we intervened on a feature, pathway, or perturbation? | Mechanism, intervention design, transport to new settings |
+
+These goals are not enemies. Prediction can use causal and non-causal features. Association can be the first step toward a causal hypothesis. Causal models often contain predictive components: in a structural model, the same variables that appear in causal equations may also help predict outcomes. The distinction is not that prediction is "bad" and causation is "good"; the distinction is the target.
+
+For example, a microbial species may predict an inflammatory phenotype because it directly contributes to inflammation, because inflammation creates an environment where it grows, or because both are driven by diet or medication. All three stories can be predictive. Only the first supports a direct intervention on that species.
+
+### Why microbiome and metabolomics are especially difficult
+
+Multi-omics studies share the usual problems of observational biology, but microbiome and metabolomics add a particular kind of instability. Different molecular layers have different temporal and biological stability:
+
+| Layer | Rough stability | Consequence for causal analysis |
+|---|---|---|
+| DNA / germline genotype | Very stable | Often useful as a baseline covariate or instrument in genetic designs |
+| Host transcriptome / RNA | Dynamic but often tied to regulated cellular states | Sensitive to context, but can reflect stable programs under controlled conditions |
+| Microbiome composition | Highly responsive to diet, drugs, age, environment, sampling | Hard to separate cause, consequence, and transient perturbation |
+| Metabolome | Often very transient | Strongly reflects recent diet, microbial activity, host state, and sample handling |
+
+This transient and sensitive nature cuts both ways. It makes microbiome and metabolomic data exciting because they respond to interventions. It also makes causal interpretation hard because the same features are easily shifted by unmeasured factors.
+
+Some common sources of ambiguity are:
+
+- unobserved confounding, such as diet, inflammation, medication, batch, environment;
+- reverse causation, such as disease state changing the microbiome;
+- compositional effects and correlated features;
+- high dimensionality, often with $p \gg n$;
+- multi-layer mediation, such as microbiome to metabolome to immune phenotype;
+- temporal instability, where today's omics measurement may reflect a recent transient state rather than a durable mechanism.
+
+The Factor IV paper is best read against this background. It does not dismiss association or prediction. It asks a narrower question: when we have structured perturbations, can we isolate the part of omics variation that is useful for causal interpretation?
+
+### Short glossary
+
+| Term | Meaning in this handout |
+|---|---|
+| Exposure | The variable whose effect we want to understand. Here this is usually an omics feature matrix $X$. |
+| Outcome | The response variable $y$, such as disease status, immune phenotype, or tumor phenotype. |
+| Causal effect | A contrast between what would happen to the outcome under different interventions on the exposure. In this paper it is represented by coefficients in a structural model. |
+| Confounder | A variable that affects both the exposure and the outcome, creating a non-causal association between them. |
+| Observed confounder | A measured covariate, such as age, site, strain, or batch, included as $Q$. |
+| Unobserved confounder | An unmeasured cause of both $X$ and $y$, often represented conceptually as $H$. |
+| Endogeneity | The statistical symptom of confounding or related problems: the exposure is correlated with the outcome error. |
+| Instrument | A variable $Z$ that shifts the exposure but has no direct path to the outcome except through the exposure. |
+| Exclusion restriction | The assumption that $Z$ affects $y$ only through $X$ and measured covariates. |
+| Relevance | The assumption that $Z$ actually explains nontrivial variation in $X$. |
+| Exogeneity / independence | The assumption that $Z$ is independent of unobserved causes of the outcome, usually conditional on $Q$. |
+| Factor | A low-dimensional latent axis summarizing coordinated variation across many variables. |
+
+## 2. Instrumental Variables: Intuition Before Notation
+
+Instrumental variables are a way to estimate causal effects when the exposure is confounded. The key idea is to find a source of variation in the exposure that is as-if external to the outcome.
+
+Suppose $X$ is a microbial feature and $y$ is a host phenotype. The raw variation in $X$ may be messy:
+
+```text
+diet, inflammation, batch, medication, disease state -> X
+diet, inflammation, batch, medication, disease state -> y
+```
+
+If we regress $y$ on raw $X$, we mix many sources of variation. IV methods instead ask:
+
+> Is there a variable $Z$ that moves $X$ for reasons unrelated to the hidden causes of $y$?
+
+If so, we can focus on the part of $X$ explained by $Z$.
+
+The simplest IV picture is:
+
+```text
+Z -> X -> y
+```
+
+The instrument $Z$ is useful because it creates variation in $X$. But for causal inference, it must not affect $y$ through any route other than $X$.
+
+### The key intuition
+
+The paper's central intuition can be stated without matrices:
+
+> We do not trust all variation in the omics data. We trust the component of omics variation that can be traced back to valid perturbations.
+
+For example:
+
+- antibiotics may shift microbial composition;
+- diet may shift microbes and metabolites;
+- genetic knockouts may perturb immune-microbiome interactions;
+- delivery mode and early feeding may shift infant microbiome assembly.
+
+These perturbations are candidates for instruments. They are not automatically valid instruments. They are useful only to the extent that the causal story supports the IV assumptions.
+
+### Mendelian randomisation as a familiar IV example
+
+Mendelian randomisation is a helpful biomedical example because many people have seen it before.
+
+The usual setup is:
+
+```text
+genetic variant Z -> exposure X -> disease outcome y
+```
+
+For example:
+
+- $Z$: a genetic variant associated with LDL cholesterol;
+- $X$: LDL cholesterol;
+- $y$: coronary artery disease.
+
+The appeal is that germline genotype is fixed before disease onset and is often less confounded by lifestyle or disease processes than measured exposures. In that sense, genetic variants can sometimes act like natural instruments.
+
+But the same assumptions apply:
+
+| Assumption | Meaning | MR example | Microbiome/multi-omics example |
+|---|---|---|---|
+| Relevance | $Z$ changes $X$ | Variant affects LDL | Antibiotics shift taxa; diet shifts metabolites |
+| Exogeneity | $Z$ is unrelated to hidden causes of $y$ | Genotype not confounded by lifestyle | Perturbation not assigned based on hidden disease risk |
+| Exclusion | $Z$ affects $y$ only through $X$ | No horizontal pleiotropy | Diet or antibiotics do not affect outcome through unmeasured non-omics paths |
+
+Horizontal pleiotropy in Mendelian randomisation is an exclusion-restriction problem. A genetic variant may affect the outcome through multiple pathways, not only through the exposure of interest. This maps neatly onto the biological concern in the Factor IV paper: diet, antibiotics, and genetic perturbations may have broad effects, so we must think carefully about which paths are included in $X$.
+
+### Two-stage least squares in words
+
+Classical IV is often introduced through two-stage least squares:
+
+1. First stage: predict the exposure from the instrument.
+2. Second stage: predict the outcome from the instrument-predicted exposure.
+
+The purpose of the first stage is not ordinary prediction for its own sake. It is to isolate the part of $X$ that can be explained by $Z$. The second stage then asks whether that instrument-explained part of $X$ is associated with the outcome.
+
+This gives the right mental model for Factor IV:
+
+> Step 1 finds instrument-aligned omics variation. Step 2 relates that variation to the outcome.
+
+## 3. Variables and Structural Notation
+
+Now we can introduce the notation used by the paper. The ordering matters: the formulas are just a compact way to express the IV intuition above.
+
+| Symbol | Meaning | Example |
+|---|---|---|
+| $y$ | Outcome | HCC status, NASH, autoantibody status |
+| $X$ | High-dimensional endogenous omics features | Microbial taxa, metagenomic species, metabolites |
+| $Z$ | Instruments or perturbations | Diet, antibiotics, genetic knockouts, early-life exposures |
+| $Q$ | Observed covariates/confounders | Age, sex, site, batch, strain, weight |
+| $H$ | Unobserved confounders | Unmeasured diet, inflammation, technical effects |
+
+The causal target is the effect of $X$ on $y$. In a linear structural model:
+
+$$
+y = X\alpha + Q\phi + \epsilon.
+$$
+
+Here $\alpha$ is the causal parameter of interest. The coefficient $\alpha_j$ represents the causal effect of feature $j$, within the assumptions of the model.
+
+The first-stage model describes how instruments and covariates relate to omics features:
+
+$$
+X = Z\beta + Q\psi + E.
+$$
+
+The part $Z\beta$ is the instrument-driven component of the omics matrix. The part $Q\psi$ is variation explained by observed covariates. The residual $E$ contains everything else.
+
+Endogeneity means that the exposure is correlated with the outcome error:
+
+$$
+\operatorname{Cov}(X, \epsilon) \neq 0.
+$$
+
+For causal inference, this is the problem. If hidden diet, inflammation, medication, or batch affects both $X$ and $y$, then raw regression of $y$ on $X$ does not isolate the causal effect $\alpha$.
+
+Using the first-stage model, we can say the same thing more intuitively:
+
+```text
+Observed X = instrument-driven part + measured-covariate part + hidden/noisy part
+```
+
+IV methods try to estimate causal effects using the instrument-driven part.
+
+## 4. Factor IV: From Classical IV to High-Dimensional Omics
+
+Classical IV is easiest with a few exposures and a few instruments. Multi-omics data are different:
+
+- $X$ may have hundreds, thousands, or tens of thousands of features;
+- $Z$ may include multiple perturbations or metadata variables;
+- $p$ can be much larger than $n$;
+- features are correlated, sparse, compositional, and biologically structured;
+- perturbations often shift biological programs rather than isolated features.
+
+The classical first-stage coefficient matrix is:
+
+$$
+\beta \in \mathbb{R}^{d \times p},
+$$
+
+where $d$ is the number of instruments and $p$ is the number of omics features. Estimating this full matrix directly can be unstable or impossible when $p$ is large.
+
+But the motivation is not only computational. In microbiome and multi-omics data, a feature-by-feature causal question is often too narrow. Microbes, genes, and metabolites work in ecological and biochemical networks. A perturbation such as diet or antibiotics rarely changes one feature in isolation; it shifts a collection of interacting taxa, pathways, and metabolites. Likewise, a host outcome may respond to a coordinated module rather than to a single microbial species.
+
+So instead of asking only:
+
+> What is the causal effect of feature $X_j$ on $y$?
+
+Factor IV asks something closer to:
+
+> What is the causal effect of a perturbation-aligned biological program on $y$?
+
+This is one reason factors are natural here. They provide a way to talk about coordinated modules of omics variation.
+
+### What is a factor?
+
+A factor is a low-dimensional axis that summarizes coordinated variation across many variables. In omics language, a factor might correspond to a broad ecological shift, a diet-associated metabolite program, an antibiotic response axis, or an immune-perturbation pattern. It is not necessarily a single mechanism. It is a statistical summary that may be biologically interpretable.
+
+We should be careful with the word "module." Statistically, factors may be constrained to be orthogonal or low-rank for stability and identifiability. Biologically, modules may overlap, interact, and change over time. So it may be better to think of a factor as an approximately low-dimensional biological program, not necessarily a clean separable pathway.
+
+Many people know the intuition from PCA or matrix factorisation. PCA finds directions that explain large variation in $X$. Principal component regression then uses those directions for prediction. Factor IV is related in spirit, but the target is different:
+
+| Method | What kind of low-dimensional direction is learned? |
+|---|---|
+| PCA | Directions of high variance in $X$ |
+| Principal component regression | Directions in $X$ used as predictors of $y$ |
+| Factor IV | Directions in $X$ that are explained by instruments $Z$ |
+
+This distinction is essential. A principal component may capture age, batch, disease severity, or sequencing depth. A Factor IV factor is meant to capture perturbation-driven variation in $X$.
+
+### Low-rank first stage
+
+Factor IV assumes that the instrument-to-omics map is sparse and low-rank:
+
+$$
+\beta = UDV^\top,
+\qquad
+\operatorname{rank}(\beta) = r \ll \min(d, p).
+$$
+
+The pieces are:
+
+| Quantity | Dimension | Interpretation |
+|---|---:|---|
+| $Z$ | $n \times d$ | Instruments or perturbations |
+| $X$ | $n \times p$ | Omics features |
+| $Q$ | $n \times t$ | Observed covariates |
+| $U$ | $d \times r$ | Which instruments define each factor |
+| $D$ | $r \times r$ | Factor strengths |
+| $V$ | $p \times r$ | Which features load on each factor |
+| $F = ZUD$ | $n \times r$ | Instrumental factors |
+| $\kappa$ | $r \times 1$ | Factor-level causal effects |
+| $\alpha = V\kappa$ | $p \times 1$ | Feature-level causal effects |
+
+Define the instrumental factors:
+
+$$
+F = ZUD.
+$$
+
+Then the first stage can be written as:
+
+$$
+X = FV^\top + Q\psi + E.
+$$
+
+This says that the instrument-driven part of $X$ is summarized by a small number of factors $F$. Each factor is a perturbation-aligned biological axis. The feature loading matrix $V$ tells us which taxa or metabolites participate in each axis.
+
+### Second stage and feature-level effects
+
+Once the factors are learned, the outcome model is fitted at the factor level:
+
+$$
+y = F\kappa + Q\phi + \text{error}.
+$$
+
+The factor-level effect $\kappa$ tells us whether an instrument-aligned biological axis is related to the outcome.
+
+The paper then maps factor effects back to individual features:
+
+$$
+\alpha = V\kappa.
+$$
+
+This is a key equation. It means feature-level effects are not estimated independently, one feature at a time. They are reconstructed from:
+
+- how strongly each feature loads on the instrument-aligned factors, through $V$;
+- how strongly each factor relates to the outcome, through $\kappa$.
+
+So Factor IV estimates structured, perturbation-aligned feature effects. It is not claiming to identify arbitrary independent causal effects for every microbial species or metabolite.
+
+This distinction matters for interpretation. If two microbes are related by a causal chain,
+
+```text
+X1 -> X2 -> y
+```
+
+then a graph-based causal analysis might try to decide whether $X_1$ causes $X_2$, whether $X_2$ directly causes $y$, and how much of the effect is mediated. Factor IV is doing something different. It may learn a factor involving both $X_1$ and $X_2$, then estimate whether that perturbation-aligned factor affects $y$. The feature-level quantity $\alpha = V\kappa$ tells us which features contribute to the outcome-associated factor. It should not automatically be read as a direct causal edge from each feature to $y$.
+
+### Why are the factors valid instruments?
+
+The paper's identification argument is simple in spirit. If $Z$ is a valid instrument, then a deterministic projection of $Z$ can inherit that validity. Since:
+
+$$
+F = ZUD,
+$$
+
+then, under the IV exogeneity assumption,
+
+$$
+\operatorname{Cov}(Z, \epsilon \mid Q) = 0
+\quad \Rightarrow \quad
+\operatorname{Cov}(F, \epsilon \mid Q) = 0.
+$$
+
+Relevance becomes the requirement that instruments induce nontrivial variation in the factor space:
+
+$$
+\operatorname{rank}(Z\beta) = r > 0.
+$$
+
+This is why the low-rank model is not only computational. It is part of the causal estimand: the method identifies effects of latent perturbation-aligned programs and then projects those effects back to features.
+
+One-sentence summary:
+
+> Factor IV learns low-dimensional omics variation explained by instruments, estimates how that variation relates to the outcome, then maps the factor effects back to individual features.
+
+## 5. Biological Applications in the Paper
+
+The paper uses simulations to validate the method under known data-generating mechanisms, then applies Factor IV to two biological settings. The simulations are summarized in Appendix C; here we focus on the applications.
+
+### DIABIMMUNE infant microbiome
+
+The first application is the DIABIMMUNE infant cohort, studying early-life gut microbiome development and autoimmune outcomes related to type 1 diabetes.
+
+This setting has several challenges:
+
+- repeated measurements;
+- strong age dependence;
+- compositional microbiome data;
+- sparse high-dimensional features;
+- genetic, environmental, and clinical variables that shape microbiome development.
+
+The paper analyzes three developmental windows:
+
+```text
+0-12 months
+12-24 months
+>24 months
+```
+
+Within each window, the authors retain at most one sample per participant.
+
+| Role | Variables |
+|---|---|
+| $X$ | Microbiome features |
+| $Z$ | HLA risk, delivery mode, feeding mode, environmental exposures |
+| $Q$ | Sex, site/country, age, growth measures, technical variables |
+| $y$ | Autoimmune phenotypes and autoantibody outcomes |
+
+The paper reports that:
+
+- HLA risk contributes strongly to microbiome factors in the first year of life;
+- delivery mode, breastfeeding, and environmental exposures become more influential later;
+- *Ruminococcus gnavus* and some *Streptococcus* species show positive effects or associations with autoimmune phenotypes;
+- *Alistipes shahii* and *Akkermansia muciniphila* show protective patterns across developmental windows.
+
+The teaching point is that Factor IV is used to isolate microbial variation aligned with early-life perturbations, rather than raw age-driven or confounded microbial variation.
+
+### Mouse HCC multi-omics
+
+The second application is a murine hepatocellular carcinoma model integrating:
+
+- gut microbiome;
+- serum metabolomics;
+- immune perturbations;
+- dietary interventions;
+- antibiotics;
+- host phenotypes.
+
+| Role | Variables |
+|---|---|
+| $X$ | Concatenated microbiome and metabolomics features |
+| $Z$ | High-fat diet, antibiotics, immune-related genetic knockouts |
+| $Q$ | Age, strain, body weight |
+| $y$ | HCC, NASH, obesity, immune phenotypes |
+
+The authors fit a Gaussian sparse low-rank first-stage model using GOFAR and choose rank $r = 2$.
+
+The main reported findings are:
+
+- one dominant factor is driven mainly by high-fat diet and antibiotics;
+- this factor is associated with obesity, NASH, and HCC;
+- the relevant microbial and metabolite loadings suggest a coordinated diet-driven microbe-metabolite axis;
+- the interpretation highlights *Ruminococcus gnavus*, Clostridia, bile acids, and lipid metabolism;
+- association-based DESeq2 results emphasize different taxa, illustrating the difference between differential abundance and instrument-aligned signal.
+
+This application makes the multi-omics argument concrete. If diet and antibiotics affect HCC through both microbiome and metabolome, including both layers in $X$ may make the exclusion restriction more plausible than using microbiome alone. But this remains a biological assumption, because diet, antibiotics, and genetic knockouts can also have broad host effects outside the measured omics layers.
+
+## 6. Discussion: What Should We Take From the Paper?
+
+### Multi-omics can help, but does not magically prove causality
+
+The supplement makes an important conceptual point: adding omics layers can sometimes strengthen the plausibility of the exclusion restriction.
+
+Suppose the true biology is:
+
+```text
+Z -> microbiome -> metabolome -> y
+```
+
+If we only measure the microbiome, then the metabolome is an omitted mediator. Some effect of $Z$ on $y$ travels through a molecular layer outside $X$. That can make the exclusion restriction less plausible for a microbiome-only model.
+
+If we include both microbiome and metabolome in $X$, then more of the $Z$-to-$y$ pathway is represented inside the endogenous feature matrix. The factor model can learn instrument-induced variation across both layers.
+
+The cautious version is:
+
+> Multi-omics can reduce omitted-mediator concerns, but it cannot guarantee that all direct or indirect non-omics paths have been measured.
+
+### What is useful about Factor IV?
+
+The paper combines:
+
+1. instrumental variables for causal inference under endogeneity;
+2. sparse low-rank factor regression for high-dimensional multi-omics;
+3. generalized first-stage likelihoods for count-like data;
+4. a structured feature-effect model, $\alpha = V\kappa$.
+
+The statistical contribution is not simply "use factors." It is the supervised construction of factors from the instrument-exposure map. The factors are not generic principal components of $X$; they are instrument-aligned factors.
+
+### Factor-based versus network-based causal views
+
+A natural alternative is to think in terms of a causal network among microbes, genes, metabolites, and host phenotypes:
+
+```text
+X1 -> X2 -> metabolite -> y
+```
+
+Network-based causal inference tries to learn or use directed relationships among variables. This can be very appealing biologically, because it matches the idea of mechanisms and pathways. But it is also difficult in high-dimensional omics data, especially with hidden confounding, compositionality, feedback, and limited sample size.
+
+Common network-flavored causal approaches include:
+
+| Approach | Question | Main difficulty |
+|---|---|---|
+| Causal DAG discovery | Which variables directly cause which others? | Strong assumptions; hidden confounding; high dimensionality |
+| Structural equation models | Can we specify equations for nodes in a network? | Requires a plausible graph or strong modeling choices |
+| Mediation analysis | Does $X$ affect $y$ through mediator $M$? | Mediator-outcome confounding is hard to rule out |
+| Time-series / Granger methods | Does past $X$ predict future $Y$ beyond past $Y$? | Directional prediction is not always causation |
+| Interventional network analysis | Which edges respond to perturbations? | Needs rich interventions and enough samples |
+
+Many microbiome "networks" are co-occurrence networks. These are usually association networks, not causal networks. An edge can reflect direct interaction, shared niche, common response to diet, compositional effects, or technical artifacts.
+
+Factor IV takes a more aggregated route. Rather than resolving every edge, it estimates effects of low-dimensional perturbation-aligned programs. This sacrifices mechanistic edge-level detail, but can be more stable when direct network discovery is too ambitious.
+
+The two views are complementary:
+
+> Network causal inference asks which variables cause which others. Factor IV asks whether instrument-induced modules of omics variation affect the outcome.
+
+### Light critique
+
+The point of this session is to learn causal-inference basics from the paper, not to dismantle it. Still, good causal thinking requires knowing where assumptions enter.
+
+Main points to keep in mind:
+
+- IV assumptions are not fully testable from the observed data.
+- Exclusion is often the hardest assumption in biology.
+- Weak instruments reduce power and can create unstable estimates.
+- The factor rank $r$ and sparsity choices influence the learned biological factors.
+- Feature-level effects are reconstructed through $\alpha = V\kappa$; they are not unrestricted per-feature causal estimates.
+- Preprocessing choices, especially for compositional microbiome data, matter.
+- Inference should ideally account for uncertainty from both the first and second stages.
+
+A useful discussion question is:
+
+> What biological story would make these instruments valid, and what biological story would break them?
+
+That question is more productive than asking whether the method is simply "causal" or "not causal."
+
+## Appendix A. Generalized First Stages for Count Data
+
+Microbiome and sequencing data are often counts, sparse, overdispersed, and compositional. A Gaussian first-stage model may be a poor working model for raw counts.
+
+The paper allows generalized first-stage models. For negative-binomial data:
+
+$$
+X_{ij} \mid Z_i, Q_i \sim \operatorname{NB}(\mu_{ij}, \phi_j),
+$$
+
+$$
+\log(\mu_{ij}) = \eta_{ij},
+\qquad
+\eta = Z\beta + Q\psi.
+$$
+
+With the Factor IV decomposition:
+
+$$
+\eta = ZUDV^\top + Q\psi = FV^\top + Q\psi.
+$$
+
+The instrumental factor is still:
+
+$$
+F = ZUD.
+$$
+
+The likelihood is used to estimate a relevant low-dimensional instrument-induced representation of $X$. The causal validity still comes from the IV assumptions on $Z$.
+
+In practice, the paper uses:
+
+- GOFAR for Gaussian or approximately Gaussian features;
+- NBFAR for negative-binomial count features.
+
+For transformed microbiome data, such as CLR-transformed abundances, a Gaussian working model can be used.
+
+## Appendix B. Estimation Workflow
+
+A practical Factor IV analysis has the following structure.
+
+```text
+Input:
+  X: high-dimensional omics matrix
+  Z: instruments/perturbations
+  Q: observed covariates
+  y: outcome
+  r: chosen factor rank
+
+Step 1:
+  Fit sparse low-rank first-stage model:
+    X ~ Z + Q
+    beta_hat = U_hat D_hat V_hat^T
+
+Step 2:
+  Construct instrumental factors:
+    F_hat = Z U_hat D_hat
+
+Step 3:
+  Fit second-stage outcome model:
+    y ~ F_hat + Q
+  Estimate factor effects:
+    kappa_hat
+
+Step 4:
+  Map back to feature-level effects:
+    alpha_hat = V_hat kappa_hat
+
+Output:
+  instrument loadings U_hat
+  feature loadings V_hat
+  factor effects kappa_hat
+  feature-level causal effects alpha_hat
+```
+
+Interpretation happens at three levels:
+
+1. Instrument level: which perturbations define each factor?
+2. Factor level: which factors affect the outcome?
+3. Feature level: which taxa/metabolites load on outcome-relevant factors?
+
+## Appendix C. Simulation Study
+
+The paper first validates Factor IV in simulations where the true causal effects are known.
+
+The main simulation setting uses:
+
+```text
+n = 200 samples
+d = 20 instruments
+p = 100 endogenous features
+t = 3 observed confounders
+k = 3 latent factors
+```
+
+The data are generated from the same general structure used by the method:
+
+$$
+\beta = UDV^\top,
+\qquad
+\alpha = V\kappa.
+$$
+
+The simulations include:
+
+- Gaussian exposures;
+- negative-binomial exposures;
+- unobserved confounding;
+- correlated first-stage and second-stage errors;
+- controlled signal-to-noise ratios.
+
+The comparison methods are association-based:
+
+- naive feature-wise OLS for continuous features;
+- DESeq2-style feature-wise negative-binomial models for count features.
+
+The main result is that Factor IV recovers the outcome signal, the instrument-exposure map, the projected causal signal, and the feature-level causal effects $\alpha$ better than association-based baselines.
+
+The important teaching point is why it wins in the simulation. The data were generated with hidden confounding or correlated errors, so association methods confuse causal signal with endogenous variation. Factor IV uses only the variation in $X$ aligned with the instruments, so it is less biased under the assumed IV conditions.
+
+The simulation does not prove that the instruments in the real applications are valid. It shows that when the model assumptions are approximately correct, the estimator can recover the intended causal structure.
+
+## Appendix D. Revised Slide Plan for a 40-Minute Talk
+
+Target: about 25 slides including title, with the main teaching weight on causal-inference foundations.
+
+1. Title
+2. The paper's question: when can omics associations support causal interpretation?
+3. Association, prediction, causation: different targets, not enemies
+4. Why microbiome/metabolomics are especially sensitive and transient
+5. Glossary: exposure, outcome, confounder, causal effect
+6. The confounding problem in one diagram
+7. IV intuition: isolate variation in $X$ explained by $Z$
+8. IV assumptions: relevance, exogeneity, exclusion
+9. Mendelian randomisation as a familiar IV example
+10. Two-stage least squares in words
+11. Variables in this paper: $X$, $y$, $Z$, $Q$, $H$
+12. Structural equations: outcome model and first stage
+13. Why high-dimensional omics breaks classical IV
+14. What is a factor? PCA/PCR analogy
+15. Factor IV: instrument-aligned factors, not generic PCs
+16. Low-rank first stage: $\beta = UDV^\top$
+17. Instrumental factors: $F = ZUD$
+18. Second stage and feature effects: $y = F\kappa + Q\phi$, $\alpha = V\kappa$
+19. Why factors inherit IV validity from $Z$
+20. DIABIMMUNE setup and main result
+21. Mouse HCC multi-omics setup and main result
+22. Why multi-omics may help exclusion
+23. Light critique: where assumptions enter
+24. Practical interpretation: what Factor IV does and does not estimate
+25. Closing discussion question: what biological story makes the instruments valid?

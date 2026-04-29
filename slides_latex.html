@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>From Association to Causation in High-Dimensional Multi-Omics</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Reading group" />
+    <meta name="date" content="2026-04-30" />
+    <script src="libs/header-attrs/header-attrs.js"></script>
+    <link href="libs/remark-css/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="slides.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+class: title-slide
+
+# From Association to Causation in High-Dimensional Multi-Omics
+
+## Instrumental factor models for causal inference
+
+### Reading group, 30 April 2026
+
+.footnote[
+Paper: *Moving from Association to Causation: Instrumental factor models for causal inference in high-dimensional multi-omics data*
+]
+
+---
+
+# Today's question
+
+.large[
+When can an omics association support a causal interpretation?
+]
+
+.callout[
+The paper's answer: use suitable perturbations as instruments, then learn the low-dimensional omics variation explained by those perturbations.
+]
+
+Key object:
+
+.eq[
+$$
+\text{perturbations } Z \rightarrow \text{omics } X \rightarrow \text{outcome } y
+$$
+]
+
+---
+
+# Three goals, not enemies
+
+.mini-table[
+| Goal | Question | Useful for |
+|---|---|---|
+| Association | Which features vary with phenotype? | Biomarkers, hypotheses |
+| Prediction | Which features predict new samples? | Classification, prognosis |
+| Causation | What would happen under intervention? | Mechanism, treatment design |
+]
+
+.callout[
+The point is not to dismiss association or prediction. The point is to match the method to the target.
+]
+
+---
+
+# Why microbiome and metabolomics are tricky
+
+.mini-table[
+| Layer | Rough stability | Causal implication |
+|---|---|---|
+| DNA / genotype | Very stable | Useful baseline, sometimes an instrument |
+| RNA | Dynamic, regulated | Context-sensitive programs |
+| Microbiome | Highly responsive | Cause, consequence, and transient shift can blur |
+| Metabolome | Very transient | Reflects recent diet, host state, microbes, handling |
+]
+
+.callout.warn[
+These layers are exciting because they respond to perturbations. They are hard because they also respond to many unmeasured perturbations.
+]
+
+---
+
+# Mini glossary
+
+.cols[
+.panel[
+**Exposure**  
+Variable whose effect we want, usually omics matrix `\(X\)`.
+
+**Outcome**  
+Response `\(y\)`, such as HCC or autoantibody status.
+
+**Causal effect**  
+What would change in `\(y\)` under an intervention on `\(X\)`.
+]
+
+.panel[
+**Confounder**  
+A cause of both `\(X\)` and `\(y\)`.
+
+**Instrument**  
+A variable `\(Z\)` that shifts `\(X\)` but has no direct path to `\(y\)`.
+
+**Factor**  
+A low-dimensional axis summarizing coordinated variation.
+]
+]
+
+---
+
+# The confounding problem
+
+&lt;svg class="dag-svg" viewBox="0 0 760 260" role="img" aria-label="Confounding DAG"&gt;
+  &lt;defs&gt;
+    &lt;marker id="arrow-conf" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#64748b"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+    &lt;marker id="arrow-conf-h" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#a43f3f"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;line class="edge edge-h" x1="380" y1="94" x2="278" y2="153" marker-end="url(#arrow-conf-h)"&gt;&lt;/line&gt;
+  &lt;line class="edge edge-h" x1="380" y1="94" x2="482" y2="153" marker-end="url(#arrow-conf-h)"&gt;&lt;/line&gt;
+  &lt;line class="edge" x1="280" y1="180" x2="480" y2="180" marker-end="url(#arrow-conf)"&gt;&lt;/line&gt;
+  &lt;rect class="node-fill node-h" x="320" y="38" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="380" y="75" text-anchor="middle"&gt;H&lt;/text&gt;
+  &lt;rect class="node-fill node-x" x="160" y="150" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="220" y="187" text-anchor="middle"&gt;X&lt;/text&gt;
+  &lt;rect class="node-fill" x="480" y="150" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="540" y="187" text-anchor="middle"&gt;y&lt;/text&gt;
+&lt;/svg&gt;
+
+.dag-note[
+Hidden causes `\(H\)` can create an association between `\(X\)` and `\(y\)`, even if part of the association is causal.
+]
+
+.cols[
+.panel[
+Observed association between `\(X\)` and `\(y\)` may include the causal path.
+]
+.panel[
+It may also include shared causes `\(H\)`: diet, medication, inflammation, batch, environment.
+]
+]
+
+---
+
+# Instrumental-variable intuition
+
+.large[
+We want the part of `\(X\)` that can be explained by `\(Z\)`.
+]
+
+&lt;svg class="dag-svg" viewBox="0 0 820 270" role="img" aria-label="Instrumental variable DAG with hidden confounding"&gt;
+  &lt;defs&gt;
+    &lt;marker id="arrow-iv" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#64748b"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+    &lt;marker id="arrow-iv-z" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#3f7d20"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+    &lt;marker id="arrow-iv-h" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#a43f3f"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;line class="edge edge-h" x1="430" y1="92" x2="384" y2="153" marker-end="url(#arrow-iv-h)"&gt;&lt;/line&gt;
+  &lt;line class="edge edge-h" x1="430" y1="92" x2="590" y2="153" marker-end="url(#arrow-iv-h)"&gt;&lt;/line&gt;
+  &lt;line class="edge edge-z" x1="170" y1="181" x2="300" y2="181" marker-end="url(#arrow-iv-z)"&gt;&lt;/line&gt;
+  &lt;line class="edge" x1="420" y1="181" x2="560" y2="181" marker-end="url(#arrow-iv)"&gt;&lt;/line&gt;
+  &lt;rect class="node-fill node-h" x="370" y="34" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="430" y="71" text-anchor="middle"&gt;H&lt;/text&gt;
+  &lt;rect class="node-fill node-z" x="50" y="152" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="110" y="189" text-anchor="middle"&gt;Z&lt;/text&gt;
+  &lt;rect class="node-fill node-x" x="300" y="152" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="360" y="189" text-anchor="middle"&gt;X&lt;/text&gt;
+  &lt;rect class="node-fill" x="560" y="152" width="120" height="58" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="620" y="189" text-anchor="middle"&gt;y&lt;/text&gt;
+&lt;/svg&gt;
+
+.dag-note[
+The instrument `\(Z\)` gives us a cleaner source of variation in `\(X\)`, while `\(H\)` still confounds raw variation between `\(X\)` and `\(y\)`.
+]
+
+.callout[
+IV methods do not trust all variation in `\(X\)`. They use the component of `\(X\)` traceable to valid external perturbations.
+]
+
+Examples of candidate `\(Z\)`: antibiotics, diet, genetic knockouts, delivery mode, early feeding, genotype.
+
+---
+
+# IV assumptions
+
+&lt;svg class="dag-svg dag-small" viewBox="0 0 860 250" role="img" aria-label="Antibiotics instrumental variable assumptions"&gt;
+  &lt;defs&gt;
+    &lt;marker id="arrow-assump" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#64748b"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+    &lt;marker id="arrow-assump-z" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#3f7d20"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+    &lt;marker id="arrow-assump-bad" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"&gt;
+      &lt;path d="M0,0 L0,6 L9,3 z" fill="#a43f3f"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;line class="edge edge-z" x1="175" y1="160" x2="330" y2="160" marker-end="url(#arrow-assump-z)"&gt;&lt;/line&gt;
+  &lt;text class="label" x="252" y="145" text-anchor="middle"&gt;relevance&lt;/text&gt;
+  &lt;line class="edge" x1="465" y1="160" x2="620" y2="160" marker-end="url(#arrow-assump)"&gt;&lt;/line&gt;
+  &lt;line class="edge edge-dash" x1="170" y1="137" x2="625" y2="137" marker-end="url(#arrow-assump-bad)"&gt;&lt;/line&gt;
+  &lt;text class="label bad-label" x="405" y="122" text-anchor="middle"&gt;exclusion rules out direct path&lt;/text&gt;
+  &lt;line class="edge edge-h" x1="410" y1="75" x2="397" y2="132" marker-end="url(#arrow-assump-bad)"&gt;&lt;/line&gt;
+  &lt;line class="edge edge-dash" x1="395" y1="70" x2="158" y2="132" marker-end="url(#arrow-assump-bad)"&gt;&lt;/line&gt;
+  &lt;text class="label bad-label" x="250" y="85" text-anchor="middle"&gt;exogeneity rules this out&lt;/text&gt;
+  &lt;line class="edge edge-h" x1="462" y1="72" x2="665" y2="133" marker-end="url(#arrow-assump-bad)"&gt;&lt;/line&gt;
+  &lt;rect class="node-fill node-z" x="35" y="135" width="140" height="50" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="105" y="156" text-anchor="middle"&gt;antibiotics&lt;/text&gt;
+  &lt;text x="105" y="175" text-anchor="middle"&gt;(Z)&lt;/text&gt;
+  &lt;rect class="node-fill node-x" x="330" y="135" width="135" height="50" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="397" y="156" text-anchor="middle"&gt;microbiome&lt;/text&gt;
+  &lt;text x="397" y="175" text-anchor="middle"&gt;(X)&lt;/text&gt;
+  &lt;rect class="node-fill" x="620" y="135" width="140" height="50" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="690" y="156" text-anchor="middle"&gt;inflammation&lt;/text&gt;
+  &lt;text x="690" y="175" text-anchor="middle"&gt;(y)&lt;/text&gt;
+  &lt;rect class="node-fill node-h" x="360" y="25" width="140" height="50" rx="8"&gt;&lt;/rect&gt;
+  &lt;text x="430" y="46" text-anchor="middle"&gt;health risk&lt;/text&gt;
+  &lt;text x="430" y="65" text-anchor="middle"&gt;(H)&lt;/text&gt;
+&lt;/svg&gt;
+
+.mini-table[
+| Assumption | Meaning | Example concern |
+|---|---|---|
+| Relevance | `\(Z\)` changes `\(X\)` | Do antibiotics shift the microbiome? |
+| Exogeneity | `\(Z\)` is not driven by hidden risk `\(H\)` | Were antibiotics given because subjects were already high-risk? |
+| Exclusion | `\(Z\)` affects `\(y\)` only through `\(X\)` | Do antibiotics affect inflammation through non-microbiome routes? |
+]
+
+---
+
+# Mendelian randomisation as IV
+
+.flow[
+.node[Genotype `\(Z\)`]
+.arrow[-&gt;]
+.node.teal[Exposure `\(X\)`]
+.arrow[-&gt;]
+.node[Disease `\(y\)`]
+]
+
+.cols[
+.panel[
+Why it works when it works:
+
+- genotype is fixed early
+- often less confounded than measured exposure
+- can create natural exposure variation
+]
+
+.panel[
+What can break it:
+
+- weak variant-exposure association
+- population structure
+- horizontal pleiotropy
+]
+]
+
+.footnote[
+Horizontal pleiotropy is an exclusion-restriction problem.
+]
+
+---
+
+# Two-stage least squares in words
+
+.cols[
+.panel[
+**Stage 1**
+
+Use `\(Z\)` and `\(Q\)` to explain `\(X\)`.
+
+.eq[
+$$
+X \sim Z + Q
+$$
+]
+]
+
+.panel[
+**Stage 2**
+
+Use the instrument-explained part of `\(X\)` to explain `\(y\)`.
+
+.eq[
+$$
+y \sim \widehat{X} + Q
+$$
+]
+]
+]
+
+.callout[
+The first stage isolates variation in `\(X\)`. The second stage asks whether that variation relates to `\(y\)`.
+]
+
+---
+
+# Variables in the paper
+
+.mini-table[
+| Symbol | Meaning | Example |
+|---|---|---|
+| `\(y\)` | Outcome | HCC, NASH, autoantibody status |
+| `\(X\)` | Endogenous omics features | Taxa, species, metabolites |
+| `\(Z\)` | Instruments / perturbations | Diet, antibiotics, knockouts, early-life exposures |
+| `\(Q\)` | Observed covariates | Age, site, batch, strain, weight |
+| `\(H\)` | Unobserved confounders | Diet detail, inflammation, technical effects |
+]
+
+---
+
+# Structural equations
+
+Outcome model:
+
+.eq[
+$$
+y = X\alpha + Q\phi + \epsilon
+$$
+]
+
+First stage:
+
+.eq[
+$$
+X = Z\beta + Q\psi + E
+$$
+]
+
+Endogeneity:
+
+.eq[
+$$
+\operatorname{Cov}(X, \epsilon) \neq 0
+$$
+]
+
+---
+
+# Why classical IV struggles here
+
+The first-stage coefficient matrix is large:
+
+.eq[
+$$
+\beta \in \mathbb{R}^{d \times p}
+$$
+]
+
+Problems:
+
+- `\(p\)` can be much larger than `\(n\)`
+- `\(Z\)` can also be multivariate
+- features are correlated, sparse, compositional
+- perturbations shift programs, not isolated features
+
+---
+
+# What is a factor?
+
+.large[
+A factor is a low-dimensional axis summarizing coordinated variation.
+]
+
+Omics examples:
+
+- diet-associated metabolite program
+- antibiotic response axis
+- immune-perturbation pattern
+- early-life microbiome maturation axis
+
+.callout[
+Think PCA or matrix factorisation, but ask: what variation is the factor designed to capture?
+]
+
+---
+
+# PCA/PCR versus Factor IV
+
+.mini-table[
+| Method | Low-dimensional direction learned |
+|---|---|
+| PCA | High-variance directions in `\(X\)` |
+| Principal component regression | Directions in `\(X\)` used to predict `\(y\)` |
+| Factor IV | Directions in `\(X\)` explained by instruments `\(Z\)` |
+]
+
+.callout[
+Factor IV factors are instrument-aligned factors, not generic principal components.
+]
+
+---
+
+# Low-rank first stage
+
+Instead of estimating all of `\(\beta\)`, assume:
+
+.eq[
+$$
+\beta = UDV^\top,
+\qquad
+\operatorname{rank}(\beta) = r \ll \min(d,p)
+$$
+]
+
+.mini-table[
+| Notation | Dimension | Interpretation |
+|---|---|
+| `\(U\)` | `\(d \times r\)` | Which instruments define each factor |
+| `\(D\)` | `\(r \times r\)` | Factor strength |
+| `\(V\)` | `\(p \times r\)` | Which features load on each factor |
+]
+
+---
+
+# Instrumental factors
+
+Define:
+
+.eq[
+$$
+F = ZUD
+$$
+]
+
+`\(Z\)` is `\(n \times d\)`, `\(U\)` is `\(d \times r\)`, `\(D\)` is `\(r \times r\)`, so `\(F\)` is `\(n \times r\)`.
+
+Then:
+
+.eq[
+$$
+X = FV^\top + Q\psi + E
+$$
+]
+
+.callout[
+`\(F\)` is the low-dimensional part of `\(X\)` driven by the instruments.
+]
+
+---
+
+# Outcome stage and feature effects
+
+Factor-level outcome model:
+
+.eq[
+$$
+y = F\kappa + Q\phi + \text{error}
+$$
+]
+
+Map back to feature effects:
+
+.eq[
+$$
+\alpha = V\kappa
+$$
+]
+
+.callout[
+Feature effects are reconstructed from factor loadings and factor effects. They are structured effects, not independent feature-wise estimates.
+]
+
+---
+
+# Why factors inherit IV validity
+
+If `\(Z\)` is valid and:
+
+.eq[
+$$
+F = ZUD
+$$
+]
+
+then `\(F\)` is a deterministic projection of the instruments.
+
+.eq[
+$$
+\operatorname{Cov}(Z,\epsilon \mid Q)=0
+\quad \Rightarrow \quad
+\operatorname{Cov}(F,\epsilon \mid Q)=0
+$$
+]
+
+.callout.warn[
+The hard part is still biological: whether `\(Z\)` was valid in the first place.
+]
+
+---
+
+# DIABIMMUNE infant microbiome
+
+.cols[
+.panel[
+**Setup**
+
+- `\(X\)`: microbiome features
+- `\(Z\)`: HLA risk, delivery mode, feeding, environment
+- `\(y\)`: autoimmune phenotypes
+]
+
+.panel[
+&lt;div class="case-figure"&gt;
+&lt;img src="figs/InfantGut.png" alt="" width="100%" style="display: block; margin: auto;" /&gt;
+&lt;/div&gt;
+]
+]
+
+Key message: early-life perturbation-aligned microbiome factors show age-specific relationships with autoimmune outcomes.
+
+---
+
+# Mouse HCC multi-omics
+
+.cols[
+.panel[
+**Setup**
+
+- `\(X\)`: microbiome + metabolomics
+- `\(Z\)`: high-fat diet, antibiotics, immune knockouts
+- `\(Q\)`: age, strain, body weight
+- `\(y\)`: HCC, NASH, obesity, immune phenotypes
+]
+
+.placeholder[
+Placeholder: Figures 4-5 from paper  
+HCC Factor IV and molecular community network
+]
+]
+
+Key message: dominant factor links diet/antibiotics, microbe-metabolite structure, bile acids, and HCC-related phenotypes.
+
+---
+
+# Why multi-omics may help exclusion
+
+Suppose biology is:
+
+.flow[
+.node[$Z$]
+.arrow[-&gt;]
+.node.teal[Microbiome]
+.arrow[-&gt;]
+.node.teal[Metabolome]
+.arrow[-&gt;]
+.node[$y$]
+]
+
+If metabolome is omitted, part of the `\(Z \rightarrow y\)` path sits outside `\(X\)`.
+
+.callout[
+Adding omics layers can absorb more instrument-induced mediation. It can make exclusion more plausible, but it does not prove exclusion.
+]
+
+---
+
+# Where assumptions enter
+
+Light critique, not a takedown:
+
+- IV assumptions are not fully testable from observed data
+- exclusion is often the hardest biological assumption
+- weak instruments reduce power and stability
+- factor rank and sparsity affect interpretation
+- `\(\alpha = V\kappa\)` is a structured effect model
+- preprocessing choices matter, especially for compositional data
+
+---
+
+# What Factor IV estimates
+
+.cols[
+.panel[
+**It is good for**
+
+- perturbation-aligned omics programs
+- high-dimensional `\(X\)`
+- structured feature effects
+- multi-omics integration
+]
+
+.panel[
+**It is not**
+
+- proof that all instruments are valid
+- unrestricted feature-wise causality
+- a replacement for biological judgment
+- immune to preprocessing choices
+]
+]
+
+---
+
+# Come talk to us
+
+&lt;div class="team-grid"&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Eva.jpg" alt="Eva"&gt;
+    &lt;div class="team-name"&gt;Eva&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Jiadong.jpg" alt="Jiadong"&gt;
+    &lt;div class="team-name"&gt;Jiadong&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Kshitij.png" alt="Kshitij"&gt;
+    &lt;div class="team-name"&gt;Kshitij&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Lin.jpg" alt="Lin"&gt;
+    &lt;div class="team-name"&gt;Lin&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Saritha.jpg" alt="Saritha"&gt;
+    &lt;div class="team-name"&gt;Saritha&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;div class="team-grid instrument-grid"&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Violin.webp" alt="Violin"&gt;
+    &lt;div class="team-name"&gt;violin&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/Violin.webp" alt="Violin"&gt;
+    &lt;div class="team-name"&gt;violin&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/viola.jpg" alt="Viola"&gt;
+    &lt;div class="team-name"&gt;viola&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/cello.jpg" alt="Cello"&gt;
+    &lt;div class="team-name"&gt;cello&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="team-member"&gt;
+    &lt;img src="figs/headshots/piano.jpg" alt="Piano"&gt;
+    &lt;div class="team-name"&gt;piano&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "ratio": "16:9",
+  "highlightStyle": "github",
+  "countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

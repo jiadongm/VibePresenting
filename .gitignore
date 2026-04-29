@@ -1,0 +1,18 @@
+.DS_Store
+.Rhistory
+
+# Source paper files and extracted text are not redistributed here.
+main.pdf
+Supp.pdf
+main.txt
+Supp.txt
+
+# R / knitr intermediates
+*.knit.md
+*.tex
+*_cache/
+*_files/
+
+# Local editor/project metadata
+.Rproj.user/
+
