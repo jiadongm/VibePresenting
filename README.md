@@ -8,7 +8,7 @@ Paper DOI: <https://doi.org/10.64898/2025.12.26.696613>
 
 The source paper PDFs are **not** redistributed in this repository. Please access the paper through the DOI above.
 
-## Why is vibe presenting
+## What is vibe presenting
 
 I am publishing this repository not only to share the final reading-group materials, but also as a small case study in how I do vibe presenting, i.e. using AI coding/writing agents to prepare technical presentations.
 
