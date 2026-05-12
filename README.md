@@ -1,4 +1,4 @@
-# Vibe presenting: prepare reading group presentations by working with AI agents
+# Vibe presenting: prepare presentations by working with AI agents
 
 This repository contains materials for a one-hour reading-group session on:
 
