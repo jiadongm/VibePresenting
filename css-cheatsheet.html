@@ -534,7 +534,105 @@ title and subtitle so they get separate h1/h2 styling.</p>
 <p>In Rmd, <code>## My Title</code> becomes the slide’s h2.
 <code># Title</code> is h1 (used on title slide and on
 <code>.inverse</code> / section dividers).</p>
+<div id="distance-between-slide-title-and-content" class="section level3">
+<h3>Distance between slide title and content</h3>
+<p>This is a frequent tweak and there are <em>four</em> sources of
+vertical space between the top of a slide and the body. Diagnose top →
+bottom:</p>
+<table>
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Gap</th>
+<th>Set by</th>
+<th>Default-ish</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Slide top edge → top of title</td>
+<td><code>.remark-slide-content { padding-top: ... }</code></td>
+<td>~52 px in your CSS, ~20 px in xaringan default</td>
+</tr>
+<tr class="even">
+<td>Title’s own top breathing room</td>
+<td><code>.remark-slide-content h2 { margin-top: ... }</code></td>
+<td>usually <code>0</code> if you’ve set it; otherwise browser default
+<code>~0.83em</code></td>
+</tr>
+<tr class="odd">
+<td>Title → first line of content</td>
+<td><code>.remark-slide-content h2 { margin-bottom: ... }</code></td>
+<td>the main knob</td>
+</tr>
+<tr class="even">
+<td>Content’s own top margin</td>
+<td><code>.remark-slide-content p:first-child, ... ul:first-child { margin-top: ... }</code></td>
+<td>browser default <code>~1em</code></td>
+</tr>
+</tbody>
+</table>
+<p>The last two <strong>margin-collapse</strong> (the larger of the two
+wins, they don’t add). The <code>padding-top</code> on
+<code>.remark-slide-content</code>, however, does <em>not</em> collapse
+with the h2’s <code>margin-top</code> — padding never collapses with
+margin. So <code>padding-top</code> and <code>margin-top</code> always
+add.</p>
+<p><strong>To tighten title-to-content:</strong></p>
+<pre class="css"><code>.remark-slide-content h2 {
+  margin-top: 0;
+  margin-bottom: 0.3em;          /* was 0.6em */
+}
+.remark-slide-content h2 + p,
+.remark-slide-content h2 + ul,
+.remark-slide-content h2 + ol,
+.remark-slide-content h2 + .pull-left,
+.remark-slide-content h2 + .pull-right {
+  margin-top: 0;                  /* kills the content&#39;s own top margin */
+}</code></pre>
+<p>The <code>h2 + selector</code> rules target the element immediately
+after the title — they neutralise its inherited <code>margin-top</code>
+so only the h2’s <code>margin-bottom</code> matters.</p>
+<p><strong>To loosen title-to-content</strong> (more air around the
+title):</p>
+<pre class="css"><code>.remark-slide-content h2 {
+  margin-top: 0.2em;
+  margin-bottom: 0.8em;
+  padding-bottom: 0.25em;
+  border-bottom: 3px solid #d8e0e7;   /* the visible separator helps the eye */
+}</code></pre>
+<p><strong>Why your slide looks unevenly spaced despite
+<code>margin-bottom: 0.6em</code>:</strong></p>
+<ul>
+<li>Common cause #1: the first content element (often a
+<code>&lt;p&gt;</code> or <code>&lt;ul&gt;</code>) brings its own
+<code>margin-top</code> ≈ <code>1em</code>. Margin-collapse means you
+see the bigger of <code>0.6em</code> and <code>1em</code> →
+<code>1em</code>. Reset content’s <code>margin-top: 0</code> to
+fix.</li>
+<li>Common cause #2: <code>.pull-left</code> / <code>.pull-right</code>
+are floated. <strong>Floats don’t participate in
+margin-collapse</strong>, so the column’s <code>margin-top</code> adds
+on top of the h2’s <code>margin-bottom</code>. Reset via the
+<code>h2 + .pull-left</code> rule above.</li>
+<li>Common cause #3: a leading blank line in the Rmd inserts an empty
+<code>&lt;p&gt;</code>. Remove the blank line, or add
+<code>.remark-slide-content p:empty { display: none; }</code>.</li>
+</ul>
+<p><strong>Quick “good defaults” snippet:</strong></p>
+<pre class="css"><code>.remark-slide-content { padding: 36px 64px 42px 64px; }
+.remark-slide-content h2 {
+  margin: 0 0 0.45em 0;
+  padding-bottom: 0.15em;
+  border-bottom: 2px solid #d8e0e7;
+}
+.remark-slide-content h2 + * { margin-top: 0; }</code></pre>
 <hr />
+</div>
 </div>
 <div id="body-and-inline-text" class="section level2">
 <h2>3. Body and inline text</h2>
