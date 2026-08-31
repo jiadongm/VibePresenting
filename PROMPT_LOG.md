@@ -2,9 +2,11 @@
 
 This file records the user prompts used while preparing the reading-group handout and slides, together with a brief description of what Codex did in response. It is intended for transparency for reading-group participants.
 
+It is a concise reconstruction, not a complete transcript. In future projects, use the accompanying plan, decision, source-map and QA templates to record four distinct kinds of work: human steering, agent implementation, scientific verification and visual inspection. That separation makes it clearer that the final artefact is not attributable to a prompt alone.
+
 ## Session Log
 
-| # | User prompt | What Codex did |
+| # | User prompt | Human steering, agent action and resulting artefact |
 |---:|---|---|
 | 1 | “We will develop slides for a reading group aiming at reading papers on bioinformatic methods related to microbiome research... First read the paper and make a plan for our handout document. Ask me questions if unsure” | Inspected the folder, identified `main.pdf` and `Supp.pdf`, extracted text, read the paper structure, and created `handout_plan.md` with a proposed tutorial handout outline and questions. |
 | 2 | “The framework looks good. Note that you can mention mendelian randomisation as a motivating example... [answers to planning questions]” | Updated `handout_plan.md` to include Mendelian randomisation, a 40-minute/25-slide target, tutorial style, light critique, and more emphasis on causal-inference foundations. |
@@ -60,4 +62,3 @@ This file records the user prompts used while preparing the reading-group handou
 - `README.md`
 - `SKILL.md`
 - `PROMPT_LOG.md`
-

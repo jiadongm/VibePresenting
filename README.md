@@ -1,10 +1,14 @@
 # Vibe presenting: prepare presentations by working with AI agents
 
-This repository contains materials for a one-hour reading-group session on:
+This repository has two purposes:
+
+1. it contains materials for a one-hour reading-group session on
 
 > *Moving from Association to Causation: Instrumental factor models for causal inference in high-dimensional multi-omics data*
 
-Paper DOI: <https://doi.org/10.64898/2025.12.26.696613>
+2. it documents a reusable, human-directed workflow for developing research presentations with AI agents.
+
+Paper DOI for this first case study: <https://doi.org/10.64898/2025.12.26.696613>
 
 The source paper PDFs are **not** redistributed in this repository. Please access the paper through the DOI above.
 
@@ -16,24 +20,24 @@ The choice of 'vibe presenting' is deliberate. Vibe coding was coined by Andrej 
 
 > **When I work with AI agents, I see them as collaborators, and myself as the human agent. I do my fair share of the work and take final responsibility.**
 
-Vibe coding doesn't (or shouldn't) mean we delegate everything to AI for every task, 
-while the human user just sips their coffee while clicking 'Yes', 
-when prompted by agents. Vibe coding, like every responsible use of AI, should involves 
+Vibe coding doesn't (or shouldn't) mean we delegate everything to AI for every task,
+while the human user just sips their coffee while clicking 'Yes',
+when prompted by agents. Vibe coding, like every responsible use of AI, should involve
 a lot of back and forth, and careful review of results by human agents.
 
-When it comes to vibe presenting, the goal was not to ask an agent to “make slides” in one shot. Instead, the process was deliberately iterative:
+The goal is not to ask an agent to “make slides” in one shot. The useful unit of work is a decision loop:
 
-1.  I chose the paper and set the audience: bioinformaticians and statisticians, most of whom would not be familiar with causal inference.
-2.  The agent read the paper and supplement, then proposed a handout plan.
-3.  I steered the framing: more educational, less paper-summary-like, with more causal-inference basics.
-4.  The agent drafted a tutorial-style handout.
-5.  I read it and pushed back on wording, structure, missing concepts, and over-simple framing.
-6.  We iteratively refined the conceptual arc, especially around association vs prediction vs causation, instrumental variables, perturbations, exposure, confounding, and factors.
-7.  The agent generated xaringan slides from the handout.
-8.  I manually fine-tuned the slides and asked for targeted changes: DAGs, CSS spacing, figure sizing, final team slide, and assumptions diagrams.
-9.  The agent rendered, debugged, and updated files as the presentation evolved.
+1. Define the audience, duration, desired takeaway and central thesis.
+2. Read the sources and map what each contributes to the story.
+3. Agree on a narrative and time budget before drafting.
+4. Draft one section at a time; the human agent interrogates concepts, wording and examples.
+5. Record accepted terminology, source-backed claims and deliberately excluded material.
+6. Render and inspect the actual changed slides at presentation size.
+7. Revise, then move to the next section.
 
-In other words, these materials are the result of back-and-forth collaboration. The agent helped with reading, drafting, restructuring, rendering, and implementation details. The human work was in setting the goal, judging the audience, steering the narrative, correcting conceptual emphasis, and making many fine-grained presentation decisions.
+This can include a handout, but it need not. The Factor IV case used a tutorial handout before slides; a multi-paper journal club may instead begin with a concise plan and develop the deck section by section. In both cases, the human work is in setting the goal, judging the audience, steering the narrative, correcting conceptual emphasis and making fine-grained presentation decisions.
+
+[`WORKFLOW.md`](WORKFLOW.md) gives the reusable workflow. The templates in this repository make its evolving state visible.
 
 ## Transparency
 
@@ -41,7 +45,7 @@ For transparency, I have included a prompt/action log:
 
 - [`PROMPT_LOG.md`](PROMPT_LOG.md)
 
-This file records the prompts used during preparation and briefly summarizes what the agent did in response. It is not a perfect transcript, but it gives readers a clear view of the human-agent workflow behind the final artifacts.
+This file records the prompts used during preparation and briefly summarizes what the agent did in response. It is not a perfect transcript. It should be read alongside a plan, decision log, source map and QA record: the transcript alone cannot show every human correction, source check or visual judgement behind a final deck.
 
 ## Main Materials
 
@@ -54,13 +58,13 @@ This file records the prompts used during preparation and briefly summarizes wha
 If GitHub Pages is enabled for this repository, the landing page should be available at:
 
 ``` text
-https://<username>.github.io/<repo>/
+https://jiadongm.github.io/VibePresenting/
 ```
 
 and the main slide deck at:
 
 ``` text
-https://<username>.github.io/<repo>/slides.html
+https://jiadongm.github.io/VibePresenting/slides.html
 ```
 
 ## What the Reading Group Covers
@@ -87,7 +91,12 @@ The reading group is framed as an introduction to causal inference through the F
 - `slides.html`, `slides_latex.html`: rendered slide decks.
 - `figs/`: figures and supporting images used in the slides.
 - `PROMPT_LOG.md`: prompt/action log for transparency.
-- `SKILL.md`: reusable lessons learned for preparing future reading-group presentations with agents.
+- `WORKFLOW.md`: reusable human-agent presentation workflow.
+- `SKILL.md`: reusable guidance for research-presentation development.
+- `PLAN_TEMPLATE.md`: audience, thesis, timing and narrative template.
+- `SOURCE_MAP_TEMPLATE.md`: claim-level provenance template.
+- `DECISIONS_TEMPLATE.md`: record of accepted framing and locked material.
+- `QA_TEMPLATE.md`: render and visual-inspection checklist.
 
 ## Rendering Notes
 
@@ -112,3 +121,5 @@ This repository should not be read as “AI-generated slides.” It is better de
 > human-directed, agent-assisted presentation development.
 
 The agent accelerated reading, drafting, refactoring, rendering, and implementation. The final shape reflects repeated human steering: what to emphasize, what to remove, what was conceptually misleading, where the audience needed more intuition, and how the slides should feel in a live reading group.
+
+The record should include corrections and disagreements, not only successful generations. A challenge to a metric, an assumption, a clinical example or a slide's visual density is part of the scientific and editorial work—not a failure of the workflow.

@@ -1,6 +1,6 @@
 ---
 name: research-presentation-prep
-description: Use when creating or editing research presentations — reading-group talks, research seminars, conference presentations — especially xaringan/remark decks for mixed bioinformatics/statistics audiences. Covers conceptual scaffolding, slide layout, overflow management, figure attribution, collaborator panels and render verification.
+description: Use when creating or editing research presentations — reading groups, research seminars and conference talks — especially xaringan/remark decks for mixed disciplinary audiences. Covers session planning, evidence mapping, incremental drafting, claim provenance, slide layout and render-based visual QA.
 ---
 
 # Research Presentation Prep
@@ -13,38 +13,28 @@ For interdisciplinary audiences, first identify what they already know and what 
 
 ## Recommended Workflow
 
-### For reading-group talks
+### For any research talk
 
-1. Inspect the folder and identify the main paper, supplement, existing figures, and any prior notes.
-2. Extract or skim the paper structure: abstract, introduction, methods, results, supplement sections, figures.
-3. Draft a handout before slides.
-   - Use the handout for conceptual scaffolding, equations, assumptions, terminology and caveats.
-   - Keep it tutorial-like when the audience is new to the method.
-4. Reorganise the paper into a teaching arc.
-   - Motivation and vocabulary first.
-   - Intuition before notation.
-   - Notation before algorithm.
-   - Applications after the audience knows what to look for.
-   - Critique near the end unless the user asks for a review-style talk.
-5. Draft slides from the handout, not directly from the paper.
-   - Slides should be sparse and spoken-through.
-   - Use placeholders for paper figures if extraction is not yet done.
-   - Keep appendix material in the handout unless it is needed live.
-6. Render early and often.
-   - For R Markdown/xaringan, check that code is hidden, math renders, figures fit, and CSS spacing works.
-   - Preserve the user's manual edits by inspecting current files before patching.
+1. Read local instructions, the current source and any plan before changing anything.
+2. Create a session brief: audience, duration, desired takeaway, central thesis and constraints.
+3. Inspect the sources and assign each a role: worked example, conceptual vocabulary, method, broader framing or counterexample.
+4. Build a teaching arc and time budget before drafting. Use a handout when it helps with technical detail; it is optional rather than a prerequisite for slides.
+5. Draft one section at a time. After each section, invite conceptual and editorial challenge before treating it as accepted.
+6. Keep slides sparse; put qualifications, definitions and source nuance in speaker notes or a source map.
+7. Before editing, locate the slide by title and nearby content as well as page number. Page numbers change after insertions.
+8. Preserve manual edits and provisionally locked slides unless the user explicitly reopens them.
+9. Render and visually inspect every material change at the intended presentation size.
+10. At the end, reconcile slide count with the time budget and test the opening and closing slides as a pair.
 
-### For research seminars
+### Source and decision discipline
 
-1. Read the local instructions first: `CLAUDE.md`, `AGENTS.md`, slide plan and the slide source.
-2. Identify the talk's backbone narrative — the unifying diagram or thesis that recurs at transitions.
-3. Work through the deck in section order, checking in after each part.
-4. For each slide edit, identify the exact slide by title, page number or nearby text before editing.
-5. Make the smallest change that satisfies the user's request.
-6. Render after every change. Check the changed slide for overflow.
-7. When the deck is done, review the closing slide: does it remind the audience of everything covered and invite questions?
+- Keep a source map for consequential claims, numerical results, paper figures and clinical examples.
+- Label each claim as a direct source claim, a paraphrase, or an interpretation made for the talk.
+- Recheck the primary source when a factual challenge arises. Plausible wording should not silently become a claim attributed to a paper.
+- Maintain a short decision record for terminology, framing, accepted revisions and material deliberately removed from the live deck.
+- Treat an audience question about a term, metric or example as evidence that the exposition needs revision.
 
-## Teaching Lessons
+## Optional Factor IV and causal-inference teaching module
 
 ### Avoid Stale Dichotomies
 
@@ -56,9 +46,9 @@ Do not frame the talk as "association bad, causation good." A better framing:
 
 These goals are complementary. Prediction can use causes, consequences, confounders, and proxies. Causal inference is needed when the user wants intervention-relevant interpretation.
 
-### Define Terms Early
+### Introduce Terms When They Become Useful
 
-When causal inference is new to the audience, include a short glossary before heavy notation:
+When causal inference is new to the audience, include a short glossary or introduce terms just before they are needed:
 
 - exposure: variable or feature set whose effect is of interest;
 - outcome: response variable;
@@ -67,7 +57,7 @@ When causal inference is new to the audience, include a short glossary before he
 - perturbation: broad source of variation in the exposure, not necessarily CRISPR or a direct biological intervention;
 - factor: low-dimensional axis summarizing coordinated variation.
 
-Use the vocabulary consistently after introducing it.
+Use the vocabulary consistently after introducing it. Do not introduce several competing effect measures or technical labels unless the talk needs their distinction; explain one measure in plain language before relying on it.
 
 ### Use Intuition Before Equations
 
@@ -157,18 +147,19 @@ For information-dense slides, use a consistent hierarchy:
 
 | Element | Size |
 |---|---|
-| Diagram node labels | 18–20px |
-| Card/section headers | 14–16px |
-| Supporting detail, bullet text | 12–13px |
-| Affiliations, metadata, attributions | 10–11px |
+| Slide titles | 42–56px |
+| Diagram node labels / card headings | 22–30px |
+| Supporting detail, bullet text | 20–25px |
+| Affiliations, metadata, attributions | 13–16px |
 
-Going below 10px is unreadable from the back of a seminar room. If you need smaller text to fit, the slide has too much content.
+Going below roughly 18px for live body text is usually unreadable from the back of a seminar room. If you need smaller text to fit, the slide has too much content.
 
 ### Inline styles vs CSS classes
 
 - Use the deck's existing CSS classes first (`.pull-left`, `.pull-right`, `.callout`, `.programme`, etc.).
-- For **one-off adjustments** on a single slide (e.g., a compact variant of a diagram), use inline `style` attributes. Do not create a new CSS class for something used once.
-- Add a new CSS class only when a style is reused across three or more slides.
+- Use inline `style` attributes for genuinely tiny one-off adjustments.
+- Create a named, slide-scoped class for a substantial one-off layout; it is safer and easier to inspect than a long inline style.
+- Create a reusable component class when a visual pattern recurs. Use modifier classes for compact or slide-specific variants rather than changing a global component rule.
 
 ### HTML grid layouts
 
@@ -223,15 +214,17 @@ Author et al., Journal, Year
 
 ## Verification
 
-Render after every edit. This is non-negotiable — xaringan silently overflows.
+Render after every material edit. This is non-negotiable — xaringan silently overflows.
 
 ```sh
 Rscript -e 'rmarkdown::render("slides/deck.Rmd", output_format = "xaringan::moon_reader")'
 ```
 
 After rendering:
-- Open the HTML and navigate to the changed slide. Check for overflow visually.
-- If browser/screenshot verification is unavailable, inspect the generated HTML source around the changed slide.
+- Open the HTML and navigate to the exact changed slide at the intended 16:9 viewport. A screenshot is preferable when available.
+- Check title wrapping, overflow, card height, whitespace, source notes, footers and the transition from the preceding slide.
+- Check that a CSS change did not disturb unrelated slides.
+- If browser/screenshot verification is unavailable, inspect the generated HTML source around the changed slide and record that visual QA remains outstanding.
 - Do not assume a slide fits because the content looks short in the `.Rmd` source. HTML elements with padding, margins and grid gaps consume more vertical space than they appear to in source.
 
 ## Editing Guardrails
@@ -251,10 +244,12 @@ When in doubt, make the slide source simpler rather than adding abstraction.
 A good project folder may contain:
 
 - `CLAUDE.md` or `AGENTS.md`: project instructions and slide-by-slide plan;
-- `SLIDE_PLAN.md`: structural outline with slide numbers and time budgets;
-- `handout.Rmd`: technical teaching handout (reading groups);
+- `PLAN.md`: audience, thesis, structural outline and time budget;
+- `SOURCE_MAP.md`: source, location and status of consequential claims;
+- `DECISIONS.md`: accepted framing, manual edits and deliberately excluded material;
+- `QA.md`: render and visual-inspection record;
+- `handout.Rmd`: optional technical teaching handout;
 - `slides/deck.Rmd`: slide source;
 - `slides/custom.css`: custom xaringan CSS with colour variables;
 - `slides/figs/`: figures, diagrams and supporting images;
 - `slides/figs/people/`: collaborator headshots for team panels.
-
